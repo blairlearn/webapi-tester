@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta charset="utf-8" />
+
+    <script>
+        const healthcheckPath = [];
+        healthcheckPath['glossary']    = 'glossary/v1/HealthCheck/status';
+        healthcheckPath['drug']        = 'drugdictionary/v1/HealthCheck/status';
+        healthcheckPath['sws']         = 'sitewidesearch/v1/Search/status';
+        healthcheckPath['bb']          = 'bestbets/v1/BestBets/status';
+        healthcheckPath['trials']      = 'triallistingsupport/v1/HealthCheck/status';
+        healthcheckPath['r4r']         = 'r4r/v1/resources';  // One day we'll add a status route.
+
+        document.addEventListener("DOMContentLoaded", function(event) {
+            const buttons = document.querySelectorAll('#healthchecks button');
+            buttons.forEach(btn => {
+                // Hook up click event.
+                btn.addEventListener('click', doHealthCheck);
+                // Trigger an initial click.
+                const click = new MouseEvent('click', {view: window});
+                btn.dispatchEvent(click);
+            });
+
+            const tierSelector = document.getElementById('tier');
+            tierSelector.addEventListener('change', clickAllHealthChecks);
+
+            const clearAll = document.getElementById('clear-healthcheck');
+            clearAll.addEventListener('click', clearAllStatus);
+        });
+
+        const clickAllHealthChecks = (event) => {
+            clearAllStatus();
+            const buttons = document.querySelectorAll('#healthchecks button');
+            buttons.forEach(btn => {
+                // Fake click each button.
+                const click = new MouseEvent('click', {view: window});
+                btn.dispatchEvent(click);
+            });
+        }
+
+        const doHealthCheck = async (event) => {
+            const api = event.srcElement.value;
+
+            await clearStatus(api);
+            const url = getUrl(api);
+            const status = await getHealthStatus(api, url);
+            reportStatus(api, status);
+        };
+
+
+        const getUrl = (api) => {
+            const path = healthcheckPath[api];
+
+            const tierEl = document.getElementById('tier');
+            const suffix = tierEl.value;
+            return `https://webapis${suffix}.cancer.gov/${path}`;
+        };
+
+        const getHealthStatus = async (api, url) => {
+
+            let isHealthy;
+            try {
+                const response = await fetch(url);
+                const message = await response.text();
+
+                // R4R doesn't have a healthcheck endpoint and needs special handling.
+                if (api === 'r4r') {
+                    isHealthy = response.status === 200 && message.length > 100;
+                } else {
+                    isHealthy = response.status === 200 && message === 'alive!';
+                }
+            } catch(err) {
+                isHealthy = false;
+            }
+
+            return isHealthy;
+        };
+
+        const reportStatus = (api, status ) => {
+            const statusEl = document.getElementById(`${api}-status`);
+            statusEl.innerText = status ? 'Healthy' : 'Error';
+            statusEl.className = status ? 'healthy' : 'unhealthy';
+        }
+
+        const clearStatus = (api) => {
+            const statusEl = document.getElementById(`${api}-status`);
+            statusEl.innerText = '';
+            statusEl.className = '';
+        }
+
+        const clearAllStatus =  async () => {
+            const buttons = document.querySelectorAll('#healthchecks button');
+            buttons.forEach(btn => {
+                const api = btn.value;
+                clearStatus(api);
+            });
+        }
+
+    </script>
+
+    <style>
+        .healthy { color: green;}
+        .unhealthy { color: red;}
+    </style>
+</head>
+<body>
+<form>
+    <select id="tier">
+        <option value="-dev">Dev</option>
+        <option value="-qa">QA</option>
+        <option value="-stage">Stage</option>
+        <option value="" selected="">Prod</option>
+    </select>
+
+    <h2>Health Checks</h2>
+    <ul id="healthchecks">
+        <li><button type="button" value="glossary">Test</button> Glossary <span id="glossary-status"></span></li>
+        <li><button type="button" value="drug">Test</button> Drug Dictionary <span id="drug-status"></span></li>
+        <li><button type="button" value="sws">Test</button> Sitewide Search <span id="sws-status"></span></li>
+        <li><button type="button" value="bb">Test</button> Best Bets <span id="bb-status"></span></li>
+        <li><button type="button" value="trials">Test</button> Trial Listing Support <span id="trials-status"></span></li>
+        <li><button type="button" value="r4r">Test</button> R4R <span id="r4r-status"></span></li>
+    </ul>
+
+    <button type="button" id="clear-healthcheck">Clear</button>
+
+</form>
+
+</body>
+</html>
